@@ -56,13 +56,15 @@ LIB_SRCS  := ZNCString.cpp Csocket.cpp znc.cpp IRCNetwork.cpp User.cpp IRCSock.c
 	SSLVerifyHost.cpp Message.cpp Translation.cpp
 LIB_SRCS  := $(addprefix src/,$(LIB_SRCS))
 BIN_SRCS  := src/main.cpp
+IDD_SRCS  := src/znc-identd.cpp
 LIB_OBJS  := $(patsubst %cpp,%o,$(LIB_SRCS))
 BIN_OBJS  := $(patsubst %cpp,%o,$(BIN_SRCS))
+IDD_OBJS  := $(patsubst %cpp,%o,$(IDD_SRCS))
 TESTS     := StringTest ConfigTest UtilsTest ThreadTest NickTest ClientTest NetworkTest \
 	MessageTest ModulesTest IRCSockTest QueryTest BufferTest UserTest
 TESTS     := $(addprefix test/,$(addsuffix .o,$(TESTS)))
-CLEAN     := znc src/*.o test/*.o core core.* .version_extra .depend modules/.depend \
-	unittest $(LIBZNC)
+CLEAN     := znc znc-identd src/*.o test/*.o core core.* .version_extra .depend \
+	modules/.depend unittest $(LIBZNC)
 DISTCLEAN := Makefile config.log config.status znc-buildmod include/znc/zncconfig.h \
 	modules/Makefile man/Makefile znc.pc znc-uninstalled.pc test/Makefile
 
@@ -84,7 +86,7 @@ endif
 .PHONY: all man modules clean distclean install version_extra_recompile test
 .SECONDARY:
 
-all: znc man modules $(LIBZNC)
+all: znc znc-identd man modules $(LIBZNC)
 	@echo ""
 	@echo " ZNC was successfully compiled."
 	@echo " Use '$(MAKE) install' to install ZNC to '$(prefix)'."
@@ -95,7 +97,6 @@ OBJS := $(BIN_OBJS) $(LIB_OBJS)
 znc: $(OBJS)
 	$(E) Linking znc...
 	$(Q)$(CXX) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
-
 else
 znc: $(BIN_OBJS) $(LIBZNC)
 	$(E) Linking znc...
@@ -105,6 +106,10 @@ $(LIBZNC): $(LIB_OBJS)
 	$(E) Linking $(LIBZNC)...
 	$(Q)$(CXX) $(LDFLAGS) -shared -o $@ $(LIB_OBJS) $(LIBS) -Wl,--out-implib=libznc.dll.a
 endif
+
+znc-identd: $(IDD_OBJS)
+	$(E) Linking znc-identd...
+	$(Q)$(CXX) $(LDFLAGS) -o $@ $(IDD_OBJS) $(LIBS)
 
 unittest: $(LIB_OBJS) test/gtest-all.o test/gmock-all.o test/gmock-main.o $(TESTS)
 	$(E) Linking unit test...
@@ -201,7 +206,7 @@ znc.service: znc.service.in
 
 CLEAN += znc.service
 
-install: znc znc.service $(LIBZNC)
+install: znc znc-identd znc.service $(LIBZNC)
 	test -d $(DESTDIR)$(bindir) || $(INSTALL) -d $(DESTDIR)$(bindir)
 	test -d $(DESTDIR)$(includedir)/znc || $(INSTALL) -d $(DESTDIR)$(includedir)/znc
 	test -d $(DESTDIR)$(PKGCONFIGDIR) || $(INSTALL) -d $(DESTDIR)$(PKGCONFIGDIR)
@@ -211,6 +216,8 @@ install: znc znc.service $(LIBZNC)
 	find $(DESTDIR)$(DATADIR)/webskins -type d -exec chmod 0755 '{}' \;
 	find $(DESTDIR)$(DATADIR)/webskins -type f -exec chmod 0644 '{}' \;
 	$(INSTALL_PROGRAM) znc $(DESTDIR)$(bindir)
+	$(INSTALL_PROGRAM) znc-identd $(DESTDIR)$(bindir)
+	setcap CAP_NET_BIND_SERVICE=+ep $(DESTDIR)$(bindir)/znc-identd
 	$(INSTALL_SCRIPT) znc-buildmod $(DESTDIR)$(bindir)
 	$(INSTALL_DATA) $(srcdir)/include/znc/*.h $(DESTDIR)$(includedir)/znc
 	$(INSTALL_DATA) include/znc/*.h $(DESTDIR)$(includedir)/znc
@@ -235,6 +242,7 @@ install: znc znc.service $(LIBZNC)
 
 uninstall:
 	rm $(DESTDIR)$(bindir)/znc
+	rm $(DESTDIR)$(bindir)/znc-identd
 	rm $(DESTDIR)$(bindir)/znc-buildmod
 	rm $(DESTDIR)$(includedir)/znc/*.h
 	rm $(DESTDIR)$(PKGCONFIGDIR)/znc.pc
