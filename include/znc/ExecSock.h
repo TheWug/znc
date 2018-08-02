@@ -58,6 +58,10 @@ class CExecSock : public CZNCSock {
         SetWSock(-1);
     }
 
+    int GetPID() {
+        return m_iPid;
+    }
+
     int popen2(int& iReadFD, int& iWriteFD, const CString& sCommand);
     int popen3(int& iReadFD, int& iWriteFD,
                int& iExtraFD, const CString& sCommand);
