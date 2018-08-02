@@ -229,8 +229,7 @@ class CAliasMod : public CModule {
         CAlias insert_alias;
         int index;
         if (CAlias::AliasGet(insert_alias, this, name)) {
-            // if Convert succeeds, then i has been successfully read from user
-            // input
+            // if Convert succeeds, then index has been successfully read
             if (!sLine.Token(2, false, " ").Convert(&index) || index < 0 ||
                 index > (int)insert_alias.AliasCmds().size()) {
                 PutModule(t_s("Invalid index."));
