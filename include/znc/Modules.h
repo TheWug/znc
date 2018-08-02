@@ -969,6 +969,13 @@ class CModule {
     /// @deprecated Use OnChanTextMessage() instead.
     virtual EModRet OnChanMsg(CNick& Nick, CChan& Channel, CString& sMessage);
 
+    /** Called when we receive a server NOTICE message <em>from IRC</em>.
+     *  @since DEV
+     *  @param Message The notice message.
+     *  @return See CModule::EModRet.
+     */
+    virtual EModRet OnServerNoticeMessage(CNoticeMessage& Message);
+
     /** Called when we receive a private NOTICE message <em>from IRC</em>.
      *  @since 1.7.0
      *  @param Message The notice message.
@@ -1526,6 +1533,7 @@ class CModules : public std::vector<CModule*>, private CCoreTranslationMixin {
     bool OnPrivTextMessage(CTextMessage& Message);
     bool OnChanMsg(CNick& Nick, CChan& Channel, CString& sMessage);
     bool OnChanTextMessage(CTextMessage& Message);
+    bool OnServerNoticeMessage(CNoticeMessage& Message);
     bool OnPrivNotice(CNick& Nick, CString& sMessage);
     bool OnPrivNoticeMessage(CNoticeMessage& Message);
     bool OnChanNotice(CNick& Nick, CChan& Channel, CString& sMessage);

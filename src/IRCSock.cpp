@@ -617,9 +617,26 @@ bool CIRCSock::OnNickMessage(CNickMessage& Message) {
 
 bool CIRCSock::OnNoticeMessage(CNoticeMessage& Message) {
     CString sTarget = Message.GetTarget();
+    CNick sSource = Message.GetNick();
     bool bResult = false;
 
-    if (sTarget.Equals(GetNick())) {
+    if (sSource.GetNick().Find(".") != CString::npos && 
+        (sTarget.Equals(GetNick()) || sTarget.Equals("*"))) {
+        IRCSOCKMODULECALL(OnServerNoticeMessage(Message), &bResult);
+        if (bResult) return true;
+
+        if (!m_pNetwork->IsUserOnline()) {
+            // If the user is detached, add to the buffer
+            CNoticeMessage Format;
+            Format.Clone(Message);
+            Format.SetNick(CNick(_NAMEDFMT(Message.GetNick().GetNickMask())));
+            Format.SetTarget("{target}");
+            Format.SetText("{text}");
+            m_pNetwork->AddNoticeBuffer(Format, Message.GetText());
+        }
+
+        return false;
+    } else if (sTarget.Equals(GetNick())) {
         IRCSOCKMODULECALL(OnPrivNoticeMessage(Message), &bResult);
         if (bResult) return true;
 

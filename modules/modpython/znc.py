@@ -641,6 +641,9 @@ class Module:
         msg.SetText(text.s)
         return ret
 
+    def OnServerNoticeMessage(self, msg):
+        pass
+
     def OnPrivNoticeMessage(self, msg):
         text = String(msg.GetText())
         ret = self.OnPrivNotice(msg.GetNick(), text)

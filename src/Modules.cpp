@@ -948,6 +948,9 @@ CModule::EModRet CModule::OnChanTextMessage(CTextMessage& Message) {
     Message.SetText(sText);
     return ret;
 }
+CModule::EModRet CModule::OnServerNoticeMessage(CNoticeMessage& Message) {
+    return CONTINUE;
+}
 CModule::EModRet CModule::OnPrivNotice(CNick& Nick, CString& sMessage) {
     return CONTINUE;
 }
@@ -1436,6 +1439,9 @@ bool CModules::OnChanMsg(CNick& Nick, CChan& Channel, CString& sMessage) {
 }
 bool CModules::OnChanTextMessage(CTextMessage& Message) {
     MODHALTCHK(OnChanTextMessage(Message));
+}
+bool CModules::OnServerNoticeMessage(CNoticeMessage& Message) {
+    MODHALTCHK(OnServerNoticeMessage(Message));
 }
 bool CModules::OnPrivNotice(CNick& Nick, CString& sMessage) {
     MODHALTCHK(OnPrivNotice(Nick, sMessage));

@@ -172,6 +172,7 @@ class ZNC_EXPORT_LIB_EXPORT CPyModule : public CModule {
     EModRet OnChanActionMessage(CActionMessage& Message) override;
     EModRet OnPrivTextMessage(CTextMessage& Message) override;
     EModRet OnChanTextMessage(CTextMessage& Message) override;
+    EModRet OnServerNoticeMessage(CNoticeMessage& Message) override;
     EModRet OnPrivNoticeMessage(CNoticeMessage& Message) override;
     EModRet OnChanNoticeMessage(CNoticeMessage& Message) override;
     EModRet OnTopicMessage(CTopicMessage& Message) override;

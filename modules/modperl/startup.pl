@@ -566,6 +566,7 @@ sub OnChanTextMessage {
 	$msg->SetText($text);
 	return $ret;
 }
+sub OnServerNoticeMessage {}
 sub OnPrivNoticeMessage {
 	my ($self, $msg) = @_;
 	my $text = $msg->GetText;
