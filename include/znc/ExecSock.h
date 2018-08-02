@@ -26,16 +26,30 @@ class CExecSock : public CZNCSock {
   public:
     CExecSock() : CZNCSock(0), m_iPid(-1) {}
 
-    int Execute(const CString& sExec) {
-        int iReadFD, iWriteFD;
-        m_iPid = popen2(iReadFD, iWriteFD, sExec);
-        if (m_iPid != -1) {
-            ConnectFD(iReadFD, iWriteFD, "0.0.0.0:0");
+    int Execute(const CString & sExec, CZNCSock * extrasock = NULL) {
+        if (!extrasock)
+        {
+            int iReadFD, iWriteFD;
+            m_iPid = popen2(iReadFD, iWriteFD, sExec);
+            if (m_iPid != -1) {
+                ConnectFD(iReadFD, iWriteFD, "0.0.0.0:0");
+            }
+        }
+        else
+        {
+            int iReadFD, iWriteFD, iExtraFD;
+            m_iPid = popen3(iReadFD, iWriteFD, iExtraFD, sExec);
+            if (m_iPid != -1) {
+                ConnectFD(iReadFD, iWriteFD, "0.0.0.0:0");
+                extrasock->ConnectFD(iExtraFD, iWriteFD, "0.0.0.0:0");
+            }
         }
         return (m_iPid);
     }
     void Kill(int iSignal) {
-        kill(m_iPid, iSignal);
+        if (m_iPid != -1) {
+            kill(m_iPid, iSignal);
+        }
         Close();
     }
     virtual ~CExecSock() {
@@ -45,6 +59,8 @@ class CExecSock : public CZNCSock {
     }
 
     int popen2(int& iReadFD, int& iWriteFD, const CString& sCommand);
+    int popen3(int& iReadFD, int& iWriteFD,
+               int& iExtraFD, const CString& sCommand);
     void close2(int iPid, int iReadFD, int iWriteFD);
 
   private:
