@@ -48,7 +48,7 @@ class CExecSock : public CZNCSock {
     }
     void Kill(int iSignal) {
         if (m_iPid != -1) {
-            kill(m_iPid, iSignal);
+            killpg(m_iPid, iSignal);
         }
         Close();
     }

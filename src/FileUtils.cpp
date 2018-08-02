@@ -652,6 +652,7 @@ int CExecSock::popen2(int& iReadFD, int& iWriteFD, const CString& sCommand) {
         dup2(rpipes[1], 2);
         close(wpipes[0]);
         close(rpipes[1]);
+        setpgid(0, 0);
         const char* pArgv[] = {"sh", "-c", sCommand.c_str(), nullptr};
         execvp("sh", (char* const*)pArgv);
         // if execvp returns, there was an error
@@ -706,6 +707,7 @@ int CExecSock::popen3(int& iReadFD, int& iWriteFD,
         close(wpipes[0]);
         close(rpipes[1]);
         close(xpipes[1]);
+        setpgid(0, 0);
         const char* pArgv[] = {"sh", "-c", sCommand.c_str(), nullptr};
         execvp("sh", (char* const*)pArgv);
         // if execvp returns, there was an error
