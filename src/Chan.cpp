@@ -49,7 +49,7 @@ CChan::CChan(const CString& sName, CIRCNetwork* pNetwork, bool bInConfig,
       m_Buffer(),
       m_bModeKnown(false),
       m_mcsModes() {
-    if (!m_pNetwork->IsChan(m_sName)) {
+    if (!m_pNetwork->IsChanStrict(m_sName)) {
         m_sName = "#" + m_sName;
     }
 

@@ -952,7 +952,7 @@ bool CIRCSock::OnNumericMessage(CNumericMessage& Message) {
             // :irc.server.net 437 * badnick :Nick/channel is temporarily unavailable
             // :irc.server.net 437 mynick badnick :Nick/channel is temporarily unavailable
             // :irc.server.net 437 mynick badnick :Cannot change nickname while banned on channel
-            if (m_pNetwork->IsChan(Message.GetParam(1)) || sNick != "*") break;
+            if (m_pNetwork->IsChanStrict(Message.GetParam(1)) || sNick != "*") break;
         case 432:
         // :irc.server.com 432 * nick :Erroneous Nickname: Illegal chars
         case 433: {
