@@ -201,6 +201,7 @@ class CSignalHandler {
         sigaddset(&signals, SIGQUIT);
         sigaddset(&signals, SIGTERM);
         sigaddset(&signals, SIGPIPE);
+        sigaddset(&signals, SIGSEGV);
         // Handle only these signals specially; the rest will have their default
         // action, but in this thread
         pthread_sigmask(SIG_SETMASK, &signals, nullptr);
@@ -232,6 +233,9 @@ class CSignalHandler {
                     pthread_sigmask(SIG_SETMASK, &signals, nullptr);
                     break;
                 case SIGPIPE:
+                case SIGSEGV:
+                    kill(0, SIGSTOP);
+                    break;
                 default:
                     break;
             }
