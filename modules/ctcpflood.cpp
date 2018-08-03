@@ -59,7 +59,8 @@ class CCtcpFloodMod : public CModule {
         return true;
     }
 
-    EModRet Message(const CNick& Nick, const CString& sMessage) {
+    EModRet Message(const CNick& Nick, const CString& sMessage,
+                    const CString& sTarget) {
         // We never block /me, because it doesn't cause a reply
         if (sMessage.Token(0).Equals("ACTION")) return CONTINUE;
 
@@ -72,9 +73,15 @@ class CCtcpFloodMod : public CModule {
 
         if (m_iNumCTCP < m_iThresholdMsgs)
             return CONTINUE;
-        else if (m_iNumCTCP == m_iThresholdMsgs)
-            PutModule(t_f("Limit reached by {1}, blocking all CTCP")(
-                Nick.GetHostMask()));
+        else if (m_iNumCTCP == m_iThresholdMsgs) {
+            if (sTarget.empty()) {
+                PutModule(t_f("Limit reached by {1}, blocking all CTCP")(
+                    Nick.GetHostMask()));
+            } else {
+                PutModule(t_f("Limit reached by {1} to {2}, blocking all CTCP")(
+                    Nick.GetHostMask(), sTarget));
+            }
+        }
 
         // Reset the timeout so that we continue blocking messages
         m_tLastCTCP = time(nullptr);
@@ -83,12 +90,12 @@ class CCtcpFloodMod : public CModule {
     }
 
     EModRet OnPrivCTCP(CNick& Nick, CString& sMessage) override {
-        return Message(Nick, sMessage);
+        return Message(Nick, sMessage, "");
     }
 
     EModRet OnChanCTCP(CNick& Nick, CChan& Channel,
                        CString& sMessage) override {
-        return Message(Nick, sMessage);
+        return Message(Nick, sMessage, Channel.GetName());
     }
 
     void OnSecsCommand(const CString& sCommand) {
