@@ -54,6 +54,7 @@ static const struct {
         {"253", false}, /* rfc1459 RPL_LUSERUNKNOWN */
         {"254", false}, /* rfc1459 RPL_LUSERCHANNELS */
         {"255", false}, /* rfc1459 RPL_LUSERME */
+        {"265", true},  /* rfc2812 RPL_TRYAGAIN */
         {"265", false},
         {"266", true},
         // We don't handle 250 here since some IRCds don't sent it
