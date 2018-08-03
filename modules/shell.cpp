@@ -23,16 +23,40 @@ using std::vector;
 
 // Forward Declaration
 class CShellMod;
+class CShellSock;
+
+class CPartnerSock : public CZNCSock {
+  public:
+    CPartnerSock(CShellMod* pShellMod, CIRCNetwork* pNetwork)
+        : CZNCSock(), m_pPartner(nullptr),
+          m_pParent(pShellMod), m_pNetwork(pNetwork) {}
+
+    ~CPartnerSock() override;
+
+    bool IsOfNetwork(CIRCNetwork* pNet) const { return pNet == m_pNetwork; }
+    bool IsOfModule(CShellMod* pParent) const { return pParent == m_pParent; }
+
+    void Disconnected();
+    void ReadLine(const CString& sData);
+
+    CShellSock* m_pPartner;
+    CShellMod* m_pParent;
+    CIRCNetwork* m_pNetwork;
+};
 
 class CShellSock : public CExecSock {
   public:
-    CShellSock(CShellMod* pShellMod, CClient* pClient, const CString& sExec)
-        : CExecSock() {
+    CShellSock(CShellMod* pShellMod, CClient* pClient,
+               const CString& sExec, CPartnerSock *extrasock) : CExecSock() {
         EnableReadLine();
         m_pParent = pShellMod;
         m_pClient = pClient;
+        m_pPartner = extrasock;
 
-        if (Execute(sExec) == -1) {
+        extrasock->EnableReadLine();
+        extrasock->m_pPartner = this;
+ 
+        if (Execute(sExec, extrasock) == -1) {
             auto e = errno;
             ReadLine(t_f("Failed to execute: {1}")(strerror(e)));
             return;
@@ -42,7 +66,14 @@ class CShellSock : public CExecSock {
         // (And clients expecting input will fail this way).
         close(GetWSock());
         SetWSock(open("/dev/null", O_WRONLY));
+        close(extrasock->GetWSock());
+        extrasock->SetWSock(open("/dev/null", O_WRONLY));
     }
+
+    ~CShellSock() override {
+        if (m_pPartner) m_pPartner->m_pPartner = nullptr;
+    }
+
     // These next two function's bodies are at the bottom of the file since they
     // reference CShellMod
     void ReadLine(const CString& sData) override;
@@ -52,8 +83,7 @@ class CShellSock : public CExecSock {
     bool IsOfModule(CShellMod* pParent) const { return pParent == m_pParent; }
 
     CShellMod* m_pParent;
-
-  private:
+    CPartnerSock* m_pPartner;
     CClient* m_pClient;
 };
 
@@ -62,7 +92,7 @@ class CShellMod : public CModule {
     MODCONSTRUCTOR(CShellMod) { m_sPath = CZNC::Get().GetHomePath(); }
 
     ~CShellMod() override {
-        vector<Csock*> vSocks = GetManager()->FindSocksByName("SHELL");
+        vector<Csock*> vSocks = GetManager()->FindSocksByName(shellname);
 
         for (unsigned int a = 0; a < vSocks.size(); a++) {
             GetManager()->DelSockByAddr(vSocks[a]);
@@ -113,10 +143,11 @@ class CShellMod : public CModule {
     }
 
     void RunCommand(const CString& sCommand) {
-        GetManager()->AddSock(
-            new CShellSock(this, GetClient(),
-                           "cd " + m_sPath + " && " + sCommand),
-            "SHELL");
+        CPartnerSock* css_server = new CPartnerSock(this, GetNetwork());
+        CShellSock* css_client = new CShellSock(this, GetClient(),
+            "cd " + m_sPath + " && " + sCommand, css_server);
+        m_pManager->AddSock(css_client, shellname);
+        m_pManager->AddSock(css_server, shellname);
     }
 
     void OnClientDisconnect() override {
@@ -134,16 +165,33 @@ class CShellMod : public CModule {
         }
     }
 
+    void OnIRCDisconnected() override {
+        std::vector<Csock*> vDeadSocks;
+        for (Csock* pSock : *GetManager()) {
+            if (CPartnerSock* pSSock = dynamic_cast<CPartnerSock*>(pSock)) {
+                if (pSSock->IsOfModule(this) &&
+                    pSSock->IsOfNetwork(GetNetwork())) {
+                    vDeadSocks.push_back(pSock);
+                }
+            }
+        }
+        for (Csock* pSock : vDeadSocks) {
+            GetManager()->DelSockByAddr(pSock);
+        }
+    }
+
   private:
     CString m_sPath;
+    static const char * const shellname;
+
 };
+const char * const CShellMod::shellname = "SHELL";
 
 void CShellSock::ReadLine(const CString& sData) {
-    CString sLine = sData;
-
+    CString sLine(sData);
     sLine.TrimRight("\r\n");
     sLine.Replace("\t", "    ");
-
+ 
     m_pParent->SetClient(m_pClient);
     m_pParent->PutShell(sLine);
     m_pParent->SetClient(nullptr);
@@ -158,6 +206,32 @@ void CShellSock::Disconnected() {
     m_pParent->SetClient(m_pClient);
     m_pParent->PutShell("znc$");
     m_pParent->SetClient(nullptr);
+}
+
+void CPartnerSock::ReadLine(const CString& sData) {
+    CString sLine(sData);
+    sLine.TrimRight("\r\n");
+    sLine.Replace("\t", "    ");
+
+    m_pParent->SetNetwork(m_pNetwork);
+    m_pParent->PutIRC(sLine);
+    if (m_pPartner) {
+        m_pParent->SetClient(m_pPartner->m_pClient);
+        m_pParent->PutShell("IRC <== " + sLine);
+        m_pParent->SetClient(nullptr);
+    }
+    m_pParent->SetNetwork(nullptr);
+}
+
+void CPartnerSock::Disconnected() {
+    // If there is some incomplete line in the buffer, read it
+    // (e.g. echo echo -n "hi" triggered this)
+    CString& sBuffer = GetInternalReadBuffer();
+    if (!sBuffer.empty()) ReadLine(sBuffer);
+}
+
+CPartnerSock::~CPartnerSock() {
+    if (m_pPartner) m_pPartner->m_pPartner = nullptr;
 }
 
 template <>
