@@ -19,7 +19,11 @@
 #include <znc/znc.h>
 #include <znc/ExecSock.h>
 
+#include <algorithm>
+
 using std::vector;
+using std::set;
+using std::find;
 
 // Forward Declaration
 class CShellMod;
@@ -36,6 +40,9 @@ class CPartnerSock : public CZNCSock {
     bool IsOfNetwork(CIRCNetwork* pNet) const { return pNet == m_pNetwork; }
     bool IsOfModule(CShellMod* pParent) const { return pParent == m_pParent; }
 
+    void CloseIRCInput();
+    void HookToIRC();
+
     void Disconnected();
     void ReadLine(const CString& sData);
 
@@ -46,29 +53,8 @@ class CPartnerSock : public CZNCSock {
 
 class CShellSock : public CExecSock {
   public:
-    CShellSock(CShellMod* pShellMod, CClient* pClient,
-               const CString& sExec, CPartnerSock *extrasock) : CExecSock() {
-        EnableReadLine();
-        m_pParent = pShellMod;
-        m_pClient = pClient;
-        m_pPartner = extrasock;
-
-        extrasock->EnableReadLine();
-        extrasock->m_pPartner = this;
- 
-        if (Execute(sExec, extrasock) == -1) {
-            auto e = errno;
-            ReadLine(t_f("Failed to execute: {1}")(strerror(e)));
-            return;
-        }
-
-        // Get rid of that write fd, we aren't going to use it
-        // (And clients expecting input will fail this way).
-        close(GetWSock());
-        SetWSock(open("/dev/null", O_WRONLY));
-        close(extrasock->GetWSock());
-        extrasock->SetWSock(open("/dev/null", O_WRONLY));
-    }
+    CShellSock(CShellMod* pShellMod, CClient* pClient,const CString& sExec,
+               CPartnerSock *extrasock);
 
     ~CShellSock() override {
         if (m_pPartner) m_pPartner->m_pPartner = nullptr;
@@ -142,12 +128,21 @@ class CShellMod : public CModule {
         GetClient()->PutClient(sLine);
     }
 
-    void RunCommand(const CString& sCommand) {
-        CPartnerSock* css_server = new CPartnerSock(this, GetNetwork());
-        CShellSock* css_client = new CShellSock(this, GetClient(),
-            "cd " + m_sPath + " && " + sCommand, css_server);
-        m_pManager->AddSock(css_client, shellname);
-        m_pManager->AddSock(css_server, shellname);
+    void RunCommand(CString sCommand) {
+        bool bFromIRC = (sCommand.find('>') == 0);
+        sCommand = bFromIRC ? sCommand.LeftChomp_n() : sCommand;
+        CPartnerSock* pIRCIOSock = new CPartnerSock(this, GetNetwork());
+        CShellSock* pStdIOSock = new CShellSock(this, m_pClient,
+            "cd " + m_sPath + " && " + sCommand, pIRCIOSock);
+
+        if (bFromIRC) {
+            PutShell("Running command with direct-from-irc STDIN.");
+            pIRCIOSock->HookToIRC();
+        } else {
+            pIRCIOSock->CloseIRCInput();
+        }
+        m_pManager->AddSock(pIRCIOSock, shellname);
+        m_pManager->AddSock(pStdIOSock, shellname);
     }
 
     void OnClientDisconnect() override {
@@ -180,12 +175,54 @@ class CShellMod : public CModule {
         }
     }
 
+    EModRet OnRaw(CString& sLine) override {
+        for (vector<CPartnerSock *>::iterator s = m_vSockets.begin();
+             s != m_vSockets.end();
+             ++s) {
+            if ((*s)->m_pNetwork == GetNetwork()) {
+                (*s)->Write(sLine);
+                (*s)->Write("\n");
+            }
+        }
+        return CONTINUE;
+    }
+
+    vector<CPartnerSock *> m_vSockets;
+
   private:
     CString m_sPath;
     static const char * const shellname;
 
 };
 const char * const CShellMod::shellname = "SHELL";
+
+CShellSock::CShellSock(CShellMod* pShellMod, CClient* pClient, const CString& sExec, CPartnerSock *extrasock) : CExecSock()
+{
+        EnableReadLine();
+        m_pParent = pShellMod;
+        m_pClient = pClient;
+        m_pPartner = extrasock;
+
+        extrasock->EnableReadLine();
+        extrasock->m_pPartner = this;
+ 
+        if (Execute(sExec, extrasock) == -1) {
+            auto e = errno;
+            ReadLine(t_f("Failed to execute: {1}")(strerror(e)));
+            return;
+        }
+
+        SetWSock(-1);
+}
+
+void CPartnerSock::CloseIRCInput() {
+    close(GetWSock());
+    SetWSock(-1);
+}
+
+void CPartnerSock::HookToIRC() {
+    m_pParent->m_vSockets.push_back(this);
+}
 
 void CShellSock::ReadLine(const CString& sData) {
     CString sLine(sData);
@@ -231,6 +268,10 @@ void CPartnerSock::Disconnected() {
 }
 
 CPartnerSock::~CPartnerSock() {
+    auto it = find(m_pParent->m_vSockets.begin(), m_pParent->m_vSockets.end(), this);
+    if (it != m_pParent->m_vSockets.end()) {
+        m_pParent->m_vSockets.erase(it);
+    }
     if (m_pPartner) m_pPartner->m_pPartner = nullptr;
 }
 
